@@ -1,5 +1,5 @@
 import React,{useState, useEffect} from 'react'
-import styles from './styles.module.css'
+//import styles from './styles.module.css'
 
 export const ChatUIComponent = (props) => {
     
@@ -41,6 +41,7 @@ export const ChatUIComponent = (props) => {
         if (Object.keys(current).length > 0) {
             collated.push(current)
         }
+        console.log(['ch',collated])
         setCollatedHistory(collated)
     }
     
@@ -53,10 +54,12 @@ export const ChatUIComponent = (props) => {
         newHistory.push({user:message})
         if (props.sendUserMessage) {
             props.sendUserMessage(userMessage).then(function(response) {
-                newHistory.push(response)
-                setHistory(newHistory)
-                collateHistory()
-                setUserMessage(' ')
+                if (response) {
+                    newHistory.push(response)
+                    setHistory(newHistory)
+                    collateHistory()
+                    setUserMessage(' ')
+                }
             })
         } else {
             var response = {bot:{utterance:'Missing property sendUserMessage',buttons:[{text:'Try again'}]}}
