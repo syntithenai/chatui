@@ -9,12 +9,32 @@ var config = require('./config')
 
 
 const App = () => {
-    var d = DialogManager(config)
-    var [ready,setReady]= useState(false)
-    
+    var d = null
+    var [ready,setReady] = useState(false)
+    var [chat,setChat] = useState(null)
+    console.log(['DM',d,ready,config])
     useEffect(() => {
+        console.log(['DM init'])
+        d = DialogManager(config)
         d.init().then(function() {
-            console.log('dm initied')
+            console.log(['dm initied',d])
+            function sendUserMessage(message) {
+                console.log(['dm send msg',message])
+                return new Promise(function(resolve,reject) {
+                    //if (ready) {
+                        console.log(['dm msg',message])
+                        return d.run(message).then(function(response) {
+                            console.log(['RES',response])
+                            resolve(response)
+                        })
+                    //} else {
+                        //resolve({})
+                    //}
+                })
+            }
+            // avoid recreating instance
+            setChat(<ChatUIComponent sendUserMessage={sendUserMessage} />)
+            setReady(true)
             //d.pushIntent()
             //console.log(d.predict())
             //,entities:[{name:'name',value:'Fred'}
@@ -22,21 +42,10 @@ const App = () => {
         })
     },[])
     
-    function sendUserMessage(message) {
-        return new Promise(function(resolve,reject) {
-            if (ready) {
-                return d.run(message).then(function(response) {
-                    console.log(['RES',response])
-                    resolve(response)
-                })
-            } else {
-                resolve({})
-            }
-        })
-    }
 
   return <>
-    {ready && <ChatUIComponent sendUserMessage={sendUserMessage} />}
+  
+    {<span style={{display:(ready ? 'block' : 'none')}} >{chat}</span>}
     {!ready && <b>Loading</b>}
     </>
 }
