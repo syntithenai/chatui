@@ -361,8 +361,8 @@ function ChatPage(props) {
                     console.log(['MESSAGE',message])
                     sendUserMessage(message,d)
                 })
-                client.startHotword()
-                showHotword(); 
+                //client.startHotword()
+                //showHotword(); 
                 setWc(client)
                 function showListening() {
                     setMicrophoneButtonStyle({border:'1px solid green', backgroundColor:'lightgreen'})
