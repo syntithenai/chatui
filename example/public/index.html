@@ -8,7 +8,12 @@
       content="width=device-width, initial-scale=1, shrink-to-fit=no"
     />
     <meta name="theme-color" content="#000000" />
-
+    
+    <meta name="REPLACE_SKILL_HERE" content="" />
+    <meta name="REPLACE_MESPEAK_HERE" content="" />
+    
+    <script src="https://apis.google.com/js/api.js"></script>
+    
     <!--
       manifest.json provides metadata used when your web app is added to the
       homescreen on Android. See https://developers.google.com/web/fundamentals/engage-and-retain/web-app-manifest/
@@ -25,11 +30,12 @@
       Learn how to configure a non-root public URL by running `npm run build`.
     -->
     <title>chatui</title>
-    <script type="text/javascript" src="mespeak.js"></script>
-  <script type="text/javascript">
+    <!-- HACK THIS INTO BUILD AT TOP LEVEL TO AVOID FAIL LOAD -->
+    <!--script type="text/javascript" src="mespeak.js"></script>
+    <script type="text/javascript">
         meSpeak.loadVoice("voices/en/en.json");
         window.meSpeak = meSpeak
-    </script>
+    </script-->
   </head>
 
   <body>

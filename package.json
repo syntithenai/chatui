@@ -49,5 +49,13 @@
   },
   "files": [
     "dist"
-  ]
+  ],
+  "dependencies": {
+    "axios": "^0.21.0",
+    "hark": "^1.2.3",
+    "react-bootstrap": "^1.4.0",
+    "react-router-dom": "^5.2.0",
+    "react-youtube": "^7.13.0",
+    "voicedialogjs": "file:../voicedialogjs"
+  }
 }
