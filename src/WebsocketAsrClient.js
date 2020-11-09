@@ -4,7 +4,6 @@ var hark = require('hark');
 
 var WebsocketAsrClient = function(config) {
         var PorcupineManager = require('./porcupine/porcupine_manager')
-        console.log(['PORK',PorcupineManager,window.PorcupineManager])
         var KeywordData =  require('./porcupine/keyword_data_edison')
         try {
             window.PorcupineManager = PorcupineManager
@@ -22,9 +21,7 @@ var WebsocketAsrClient = function(config) {
         
         var speakingTimeout = null
         
-        // default volumes
-        var inputvolume = 1.0  // TODO also hotword volume?
-        var outputvolume = 1.0
+        var inputvolume = 1.0  
         
         let audioContext = window.AudioContext || window.webkitAudioContext;
         let microphoneContext = null
@@ -70,10 +67,7 @@ var WebsocketAsrClient = function(config) {
         }
         
         
-        function setVolume(volume) {
-            if (speakerGainNode && speakerGainNode.gain) speakerGainNode.gain.value = volume/100;
-        }
-        
+       
         // event functions
         // accept callback for trigger on lifecycle events
         function bind(key,callback) {
@@ -132,6 +126,7 @@ var WebsocketAsrClient = function(config) {
                     console.log(    'Hw no strart failed instant manager')
                 }
                 hotwordInitialised = true;
+                
             }
         };
 
@@ -143,51 +138,6 @@ var WebsocketAsrClient = function(config) {
         };
         
 
-        /**
-         * HELPER FUNCTIONS
-         */
-           
-        /**
-         * Bind silence recognition events to set speaking state
-         */ 
-        function bindSpeakingEvents() {
-             if (!navigator.getUserMedia) {
-                navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia;
-             }
-             try {
-                if (navigator.getUserMedia) {
-                  navigator.getUserMedia({audio:true}, function(stream) {
-                    var options = {};
-                    var speechEvents = hark(stream, options);
-                    speechEvents.on('speaking', function() {
-                      clearTimeout(speakingTimeout)
-                      speaking = true
-                      if (onCallbacks.hasOwnProperty('speaking')) {
-                        onCallbacks['speaking']()
-                      }
-                    });
-
-                    speechEvents.on('stopped_speaking', function() {
-                      // send an extra second of silence for ASR
-                      speakingTimeout = setTimeout(function() {
-                             clearTimeout(speakingTimeout)
-                             speaking = false
-                             if (onCallbacks.hasOwnProperty('stopspeaking')) {
-                                onCallbacks['stopspeaking']()
-                             }
-                      },600);
-                    });    
-                      
-                  }, function(e) {
-                    console.log(['MIC Error capturing audio.',e]);
-                  });
-                } else {
-                    console.log('MIC getUserMedia not supported in this browser.');
-                }
-             }   catch (e) {
-                 console.log(e);
-             }
-        };
         
         function bufferAudio(audio) {
             //console.log('buffer')
@@ -218,88 +168,77 @@ var WebsocketAsrClient = function(config) {
             }
         }
         
-        
         function startMicrophone() {
+            console.log('START MIC CREATE CLIENT')
+            microphoneAudioBuffer = []
             isSending = true
-            client = new WebSocket(config.server, 'asr-audio');
-            client.onerror = function() {
-                console.log('Connection Error');
-            };
-            client.onopen = function() {
-                console.log('WebSocket Client Connected');
-                //isConnected = true;
-            
-            };
-            client.onclose = function() {
-                console.log('echo-protocol Client Closed');
-                //isConnected = false
-            };
-            client.onmessage = function(e) {
-                console.log(["Received ee: ",e])
-                if (typeof e.data === 'string') {
-                    console.log("Received: '" + e.data + "'");
-                    stopMicrophone()
-                    if (onCallbacks.hasOwnProperty('speaking')) {
-                        onCallbacks['message'](e.data)
-                    }
-                }
-            };
+            createClient()
             
             if (onCallbacks.hasOwnProperty('microphoneStart')) {
                 onCallbacks['microphoneStart']()
             }
         }
         
-            
-        function gotDevices(deviceInfos,site) {
-          // TODO https://github.com/webrtc/samples/blob/gh-pages/src/content/devices/input-output/js/main.js
-          // Handles being called several times to update labels. Preserve values.
-          var device = 'default'
-          var devices={}
-          for (let i = 0; i !== deviceInfos.length; ++i) {
-            const deviceInfo = deviceInfos[i];
-            if (deviceInfo.kind === 'audioinput') {
-                devices[deviceInfo.label] = deviceInfo.deviceId
-                if (deviceInfo.label && deviceInfo.label.toLowerCase().indexOf('speakerphone') !== -1) {
-                    device = deviceInfo.deviceId
-                }
+        
+        function stopMicrophone() {
+            console.log('STOP MIC CLOSE CLIENT')
+            isSending = false;
+            // close websocket
+            if (client) client.close()
+            client = null
+            if (onCallbacks.hasOwnProperty('microphoneStop')) {
+                onCallbacks['microphoneStop']()
             }
-            devices['FINAL'] = device
-          }
-          console.log(['FOUND DEVICES ',devices,' USING ',device])
-          activateRecording(device)
-        }
-
-        function handleError(error) {
-          console.log('navigator.MediaDevices.getUserMedia error: ', error.message, error.name);
+            
         }
         
+        function stopAll() {
+            stopHotword()
+            stopMicrophone()
+        }   
+        
+        function createClient() {
+            console.log('CREATE CLIENT',client)
+            if (client) return //client.close()
+            client = null
+            client = new WebSocket(config.server, 'asr-audio');
+            client.onerror = function(e) {
+                console.log(['Connection Error',e]);
+            };
+            client.onopen = function() {
+                console.log('WebSocket Client Connected');
+                //isConnected = true;
+                // init message sends current skill id to ASR server
+                client.send(JSON.stringify({init:config && config.skill ? config.skill : 'anonymous'}));
+            };
+            client.onclose = function() {
+                console.log('WebSocket Client Closed');
+                //isConnected = false
+            };
+            client.onmessage = function(e) {
+                console.log(["WebSocket Received ee: ",e])
+                if (typeof e.data === 'string') {
+                    var json = {}
+                    try {
+                        json = JSON.parse(e.data)
+                    } catch (e) {
+                        
+                    }
+                    console.log(['CLIUENT MESSAGE',json])
+                    
+                    console.log("WebSocket Received string : '" + e.data + "'");
+                    stopMicrophone()
+                    if (onCallbacks.hasOwnProperty('speaking')) {
+                        onCallbacks['message'](e.data)
+                    }
+                }
+            };
+        }
         
         function activateRecording(deviceId) {
             if (isRecording) return;
             isRecording = true;
-            
             console.log(['activate recording '])        
-            //// init websocket client
-            //client = new WebSocket(config.server, 'asr-audio');
-            //client.onerror = function() {
-                //console.log('Connection Error');
-            //};
-            //client.onopen = function() {
-                //console.log('WebSocket Client Connected');
-            //};
-            //client.onclose = function() {
-                //console.log('echo-protocol Client Closed');
-            //};
-            //client.onmessage = function(e) {
-                //console.log(["Received ee: ",e])
-                //if (typeof e.data === 'string') {
-                    //console.log("Received: '" + e.data + "'");
-                //}
-            //};
-            
-            
-             
             
             if (!navigator.getUserMedia) {
                 navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia ||
@@ -375,37 +314,90 @@ var WebsocketAsrClient = function(config) {
                                     sendAudioBuffer() 
                       
                                 } else {
-                                    if (!recorderTimeout) recorderTimeout = setTimeout(function() {sendAudioBuffer(); stopMicrophone(); startHotword(); },300)
+                                    //if (!recorderTimeout) recorderTimeout = setTimeout(function() {console.log('TIMEOUT'); sendAudioBuffer(); stopMicrophone(); startHotword(); },2000)
                                     bufferAudio(Buffer.from(convertFloat32ToInt16(res)));
                                 }
                             //} 
                           });
                       }
                   }
-                  
+                  //
                 microphoneGainNode.connect(recorder);
                 audioInput.connect(microphoneGainNode);
-                recorder.connect(microphoneContext.destination);                         
+                recorder.connect(microphoneContext.destination);     
+                //createClient()      
+               // client.close()              
             }
         }
-        
-        
-        function stopMicrophone() {
-            isSending = false;
-            // close websocket
-            if (client) client.close()
-            client = null
-            if (onCallbacks.hasOwnProperty('microphoneStop')) {
-                onCallbacks['microphoneStop']()
-            }
             
+        function gotDevices(deviceInfos,site) {
+          // TODO https://github.com/webrtc/samples/blob/gh-pages/src/content/devices/input-output/js/main.js
+          var device = 'default'
+          var devices={}
+          for (let i = 0; i !== deviceInfos.length; ++i) {
+            const deviceInfo = deviceInfos[i];
+            if (deviceInfo.kind === 'audioinput') {
+                devices[deviceInfo.label] = deviceInfo.deviceId
+                if (deviceInfo.label && deviceInfo.label.toLowerCase().indexOf('speakerphone') !== -1) {
+                    device = deviceInfo.deviceId
+                }
+            }
+            devices['FINAL'] = device
+          }
+          console.log(['FOUND DEVICES ',devices,' USING ',device])
+          activateRecording(device)
         }
         
-        function stopAll() {
-            stopHotword()
-            stopMicrophone()
-        }   
+        /**
+         * HELPER FUNCTIONS
+         */
+           
+        /**
+         * Bind silence recognition events to set speaking state
+         */ 
+        function bindSpeakingEvents() {
+             if (!navigator.getUserMedia) {
+                navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia;
+             }
+             try {
+                if (navigator.getUserMedia) {
+                  navigator.getUserMedia({audio:true}, function(stream) {
+                    var options = {};
+                    var speechEvents = hark(stream, options);
+                    speechEvents.on('speaking', function() {
+                      clearTimeout(speakingTimeout)
+                      speaking = true
+                      if (onCallbacks.hasOwnProperty('speaking')) {
+                        onCallbacks['speaking']()
+                      }
+                    });
+
+                    speechEvents.on('stopped_speaking', function() {
+                      // send an extra second of silence for ASR
+                      speakingTimeout = setTimeout(function() {
+                             clearTimeout(speakingTimeout)
+                             speaking = false
+                             if (onCallbacks.hasOwnProperty('stopspeaking')) {
+                                onCallbacks['stopspeaking']()
+                             }
+                      },600);
+                    });    
+                      
+                  }, function(e) {
+                    console.log(['MIC Error capturing audio.',e]);
+                  });
+                } else {
+                    console.log('MIC getUserMedia not supported in this browser.');
+                }
+             }   catch (e) {
+                 console.log(e);
+             }
+        };
         
+        function handleError(error) {
+          console.log('navigator.MediaDevices.getUserMedia error: ', error.message, error.name);
+        }
+
         function init() {
             if (navigator && navigator.mediaDevices) {
                 navigator.mediaDevices.enumerateDevices().then(function(info){ gotDevices(info,config.site)} ).catch(handleError);

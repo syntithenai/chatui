@@ -267,11 +267,29 @@ function ChatPage(props) {
             dmUsed.run(message).then(function(response) {
                 console.log(['dm send msg real done',response])
                 setUserMessage(' ')
+                //startHotword()
             })
         } 
     }
     
-    function handleBotMessage(utterance) {
+    function restartVoiceNow(startVoice) {
+        console.log(['RESTART VOICE',startVoice,wc,microphoneState,client]) 
+        //  RESTART VOICE recognition?
+        if (client && microphoneState > 0) {
+            if (startVoice) {
+                console.log(['RESTART VOICE start']) 
+                client.stopHotword()
+                client.startMicrophone()
+            } else {
+                console.log(['RESTART VOICE hw']) 
+                client.stopMicrophone()
+                client.startHotword()
+            }
+        }
+    }
+    
+    function handleBotMessage(utterance,startVoice) {
+        console.log(['HANDLEBOT START',utterance,startVoice,dm,wc])
         setFullScreenYoutube(null)
         setFullScreenVideo(null)
         var newHistory = []
@@ -280,7 +298,7 @@ function ChatPage(props) {
         } catch (e) {
             console.log(e)
         }
-        //console.log(['HANDLEBOT',JSON.parse(JSON.stringify(newHistory)),utterance])
+        console.log(['HANDLEBOT',JSON.parse(JSON.stringify(newHistory)),utterance,startVoice])
         var lastMessage = newHistory.length > 0 ? newHistory[newHistory.length -1] :{user:'',bot:[]}
         if (!lastMessage.user) lastMessage.user = ''
         var bot = lastMessage && lastMessage.bot ? lastMessage.bot : []
@@ -296,7 +314,9 @@ function ChatPage(props) {
         }
         //console.log(['HANDLEBOT newhist',JSON.parse(JSON.stringify(newHistory))])
         setHistory(newHistory)
-        return speakBotResponse([utterance])
+        return new Promise(function(resolve,reject) {
+            speakBotResponse([utterance]).then(function() {restartVoiceNow(startVoice); resolve() })
+        })
     }
     
     function resetHistory() {
@@ -313,79 +333,83 @@ function ChatPage(props) {
             }
         },1000)
     }
+    
+    function disableAutoHotword() {
+        console.log('DISHW',wc,client)
+        localStorage.setItem('auto_microphone','NO')
+        if (wc) {
+            wc.stopHotword()
+            wc.stopMicrophone()
+            wc = null
+        }
+        showDisconnected()
+    }
+    
+    function showListening() {
+        setMicrophoneButtonStyle({border:'1px solid green', backgroundColor:'lightgreen'})
+    }
+
+    function showHotword() {
+        setMicrophoneButtonStyle({border:'1px solid red', backgroundColor:'lightpink'})
+    }
+
+    function showStopped() {
+        setMicrophoneButtonStyle({border:'1px solid red', backgroundColor:'grey'})
+    }
+    function showDisconnected() {
+        setMicrophoneButtonStyle({border:'1px solid black', backgroundColor:'grey'})
+    }
+    function showSilentListening() {
+        setMicrophoneButtonStyle({border:'1px dashed green', backgroundColor:'lightgreen'})
+    }
+   
+
        
     function toggleVoice() {
-        console.log(['TOGGLEVOIC',microphoneState,wc])
-        if (wc) {
+        localStorage.setItem('auto_microphone','YES')
+        createWebsocketClient(dm,currentSkill.userAvatar+"-"+currentSkill.title)
+        console.log(['TOGGLEVOIC',microphoneState,client,dm,wc])
+        if (client) {
             // active -> return to hotword
             if (microphoneState === 3) {
-                wc.stopMicrophone()
-                wc.startHotword()
+                client.stopMicrophone()
+                client.startHotword()
             // hotword => start microphone
             } else if (microphoneState === 2) {
-                wc.stopHotword()
-                wc.startMicrophone()
-            } else  {
-                wc.stopMicrophone()
-                wc.startHotword()
+                console.log(['TOGGLEVOIC hw 2 act'])
+                client.stopHotword()
+                client.startMicrophone()
+            } else if (microphoneState === 1) {
+                //client.stopMicrophone()
+                client.startHotword()
+            } else if (microphoneState === 0) {
+                client.stopHotword()
+                client.startMicrophone()
             }
         }
     }   
-       
-    function trainChat() {
-        setHistory([])
-        setReady(false)
-        //console.log(['TRAIN reset history',history])
-        return new Promise(function(resolve,reject) {
-            //console.log(['TRAIN',JSON.parse(JSON.stringify(currentSkill))])
-            setHistory([])
-            //exportJSON(currentSkill).then(function(config) {
-                //console.log(['TRAIN dm exported json',config])
-                var d = DialogManager(currentSkill ? currentSkill : {})
-                //console.log(['TRAIN dm create ',d])
-                d.handleBotMessage = handleBotMessage
-                setDm(d)
-                setReady(true)
-                console.log(['TRAIN dm set ready '])
-                d.init().then(function(botWelcome) {
-                    //console.log(['TRAIN dm initied',botWelcome])
-                    setReady(true)
-                    console.log(window.WebsocketAsrClient) 
 
-                var config = {}
+    function createWebsocketClient(d,skillIdent) {
+      //  if (!wc) {
+            console.log(['CREATEWEBSOCKETCLIENT real'])
+                var config = {skill:skillIdent}
                 config.server = 'wss://api.opennludata.org:5000/'
                 //config.server = 'ws://localhost:8080/'
                 //config.server = 'wss://localhost:5000/'
-                client = new window.WebsocketAsrClient(config)
+                client = new WebsocketAsrClient(config)
+                setWc(client)
                 client.bind('message',function(message) {
                     console.log(['MESSAGE',message])
                     sendUserMessage(message,d)
                 })
-                //client.startHotword()
-                //showHotword(); 
-                setWc(client)
-                function showListening() {
-                    setMicrophoneButtonStyle({border:'1px solid green', backgroundColor:'lightgreen'})
-                }
-
-                function showHotword() {
-                    setMicrophoneButtonStyle({border:'1px solid red', backgroundColor:'lightpink'})
-                }
-
-                function showStopped() {
-                    setMicrophoneButtonStyle({border:'1px solid red', backgroundColor:'grey'})
-                }
-                function showDisconnected() {
-                    setMicrophoneButtonStyle({border:'1px solid black', backgroundColor:'grey'})
-                }
-                function showSilentListening() {
-                    setMicrophoneButtonStyle({border:'1px dashed green', backgroundColor:'lightgreen'})
-                }
-               
-
-                client.bind('hotwordDetected',function() {
-                   showListening(); 
+                client.bind('error',function(event,message) {
+                    console.log(['ERROR',event,'MESSAGE',message])
                 })
+                
+                
+                //client.bind('hotwordDetected',function() {
+                   //showListening(); 
+                //})
                 client.bind('microphoneStart',function() {
                    showListening(); 
                    setMicrophoneState(3)
@@ -416,18 +440,47 @@ function ChatPage(props) {
                    //state = 1
                 //})
                 client.bind('speaking',function() {
+                    console.log('SPEAK');
                     if (microphoneState == 3) {
                         showListening(); 
                     }
                 })
                 client.bind('stopspeaking',function() {
-                   if (microphoneState == 3) {
+                    console.log('STOP SPEAK');
+                    if (microphoneState == 3) {
                         showSilentListening(); 
                     }
                 })
-
+        //}
+    }
+       
+    function trainChat() {
+        setHistory([])
+        setReady(false)
+        //console.log(['TRAIN reset history',history])
+        return new Promise(function(resolve,reject) {
+            console.log(['TRAIN',JSON.parse(JSON.stringify(currentSkill))])
+            setHistory([])
+            //exportJSON(currentSkill).then(function(config) {
+                //console.log(['TRAIN dm exported json',config])
+                var d = DialogManager(currentSkill ? currentSkill : {})
+                //console.log(['TRAIN dm create ',d])
+                d.handleBotMessage = handleBotMessage
+                setDm(d)
+                setReady(true)
+                console.log(['TRAIN dm set ready '])
+                d.init().then(function(botWelcome) {
+                    //console.log(['TRAIN dm initied',botWelcome])
+                    setReady(true)
+                    //console.log(window.WebsocketAsrClient) 
                     
-                    
+                    var autoHotword = localStorage.getItem('auto_microphone') === "YES" ? true : false
+                    console.log(['CREATEWEBSOCKETCLIENT',autoHotword,d])    
+                    if (autoHotword) {
+                        createWebsocketClient(d,currentSkill.userAvatar+"-"+currentSkill.title)
+                        client.startHotword()
+                        showHotword(); 
+                    }
                     resolve([])
                 })
             //})
@@ -439,6 +492,7 @@ function ChatPage(props) {
         return undefined !== url[2]?url[2].split(/[^0-9a-z_\-]/i)[0]:url[0];
     }
     
+
     //console.log(['DM',d,ready,config])
     useEffect(() => {
         if (currentSkill) {
@@ -466,7 +520,7 @@ function ChatPage(props) {
                         }}  
                         
                         onChange={function(e) {setUserMessage(e.target.value)}} />
-                        <MicrophoneComponent onClick={function(e) {toggleVoice()}} style={Object.assign({},micbuttonStyle,microphoneButtonStyle)} onMessage={function(message) {setUserMessage(message); sendUserMessage(message);}} />
+                        <MicrophoneComponent onContextMenu={function(e) {disableAutoHotword()}} onClick={function(e) {toggleVoice()}} style={Object.assign({},micbuttonStyle,microphoneButtonStyle)} onMessage={function(message) {setUserMessage(message); sendUserMessage(message);}} />
                         
                         {!mute && <Button variant="primary" style={Object.assign({},buttonStyle,{marginLeft:'1em',backgroundColor:'#90ee9024',borderColor:'green'})}    onClick={function(e) {
                             setMute(true)
