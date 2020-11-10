@@ -30,7 +30,9 @@ var WebsocketAsrClient = function(config) {
         var bufferSource = null
         var currentVolume = null      
         var onCallbacks = {}
-        
+        var recorderTimeout = null;  
+                  
+                  
         var SENSITIVITIES = new Float32Array([
                 0.9 //, // "Hey Edison"
                 //0.5, // "Hot Pink"
@@ -79,6 +81,7 @@ var WebsocketAsrClient = function(config) {
         } 
          
         function startHotword() {
+            //console.log('START HOTWORD')
             if (onCallbacks.hasOwnProperty('hotwordStart')) {
                 onCallbacks['hotwordStart']()
             }
@@ -91,11 +94,11 @@ var WebsocketAsrClient = function(config) {
                         if (onCallbacks.hasOwnProperty('hotwordDetected')) {
                             onCallbacks['hotwordDetected'](keyword)
                         }
-                        console.log('hotword DETECT')
+                        //console.log('hotword DETECT')
                     }
                 };
                 let readyCallback = function() {
-                    console.log('hotword ready')
+                    //console.log('hotword ready')
                     hotwordReady = true;
                     if (onCallbacks.hasOwnProperty('hotwordReady')) {
                         onCallbacks['hotwordReady']()
@@ -117,13 +120,13 @@ var WebsocketAsrClient = function(config) {
                 //} 
                 var porcupineManager = PorcupineManager("./porcupine/porcupine_worker.js",true  );
                 //}
-                console.log(['PORK how',PorcupineManager,window.PorcupineManager,porcupineManager])
+                //console.log(['PORK how',PorcupineManager,window.PorcupineManager,porcupineManager])
                 if (porcupineManager) {
                     porcupineManager.start(KeywordData, SENSITIVITIES, processCallback, audioManagerErrorCallback, readyCallback);
                     
-                    console.log(    'HOW STARYTED')
+                    //console.log(    'HOW STARYTED')
                 } else {
-                    console.log(    'Hw no strart failed instant manager')
+                    //console.log(    'Hw no strart failed instant manager')
                 }
                 hotwordInitialised = true;
                 
@@ -131,6 +134,7 @@ var WebsocketAsrClient = function(config) {
         };
 
         function stopHotword() {
+            //console.log('STOP HOTWORD')
             if (onCallbacks.hasOwnProperty('hotwordStop')) {
                 onCallbacks['hotwordStop']()
             }
@@ -140,17 +144,17 @@ var WebsocketAsrClient = function(config) {
 
         
         function bufferAudio(audio) {
-            //console.log('buffer')
+            console.log('buffer')
             microphoneAudioBuffer.push(audio);
-            if (microphoneAudioBuffer.length > 30) {
+            if (microphoneAudioBuffer.length > 3) {
                 microphoneAudioBuffer.shift();
             }
         }
         
         function sendAudioBuffer() {
-            
+            //console.log(["send buffer",microphoneAudioBuffer.length])
             if (client && client.readyState === client.OPEN) {
-                //console.log('sendbuffer')
+                console.log('sendbuffer')
                 for (var a in microphoneAudioBuffer) {
                     sendAudio(microphoneAudioBuffer[a]);
                 }
@@ -169,7 +173,7 @@ var WebsocketAsrClient = function(config) {
         }
         
         function startMicrophone() {
-            console.log('START MIC CREATE CLIENT')
+            //console.log('START MIC CREATE CLIENT')
             microphoneAudioBuffer = []
             isSending = true
             createClient()
@@ -181,10 +185,15 @@ var WebsocketAsrClient = function(config) {
         
         
         function stopMicrophone() {
-            console.log('STOP MIC CLOSE CLIENT')
+            //console.log('STOP MIC CLOSE CLIENT',client)
             isSending = false;
             // close websocket
-            if (client) client.close()
+            if (client && client.readyState === client.OPEN) {
+                //console.log('STOP MIC CLOSE CLIENT send close',client)
+                client.send(null)
+                client.close()
+            }
+            
             client = null
             if (onCallbacks.hasOwnProperty('microphoneStop')) {
                 onCallbacks['microphoneStop']()
@@ -198,40 +207,49 @@ var WebsocketAsrClient = function(config) {
         }   
         
         function createClient() {
-            console.log('CREATE CLIENT',client)
+            //console.log('CREATE CLIENT',client)
             if (client) return //client.close()
-            client = null
+            //client = null
             client = new WebSocket(config.server, 'asr-audio');
             client.onerror = function(e) {
-                console.log(['Connection Error',e]);
+                //console.log(['Connection Error',e]);
+                if (recorderTimeout) clearTimeout(recorderTimeout)
+                if (speakingTimeout) clearTimeout(speakingTimeout)
+                stopMicrophone()
                 startHotword()
             };
             client.onopen = function() {
-                console.log('WebSocket Client Connected');
+                //console.log('WebSocket Client Connected');
                 //isConnected = true;
                 // init message sends current skill id to ASR server
-                client.send(JSON.stringify({init:config && config.skill ? config.skill : 'anonymous'}));
+                if (client) client.send(JSON.stringify({init:config && config.skill ? config.skill : 'anonymous'}));
             };
             client.onclose = function() {
-                console.log('WebSocket Client Closed');
+                //console.log('WebSocket Client Closed');
+                if (recorderTimeout) clearTimeout(recorderTimeout)
+                if (speakingTimeout) clearTimeout(speakingTimeout)
+                stopMicrophone()
                 startHotword()
                 //isConnected = false
             };
             client.onmessage = function(e) {
-                console.log(["WebSocket Received ee: ",e])
+                //console.log(["WebSocket Received ee: ",e])
                 if (typeof e.data === 'string') {
-                    var json = {}
+                    var message = {}
                     try {
-                        json = JSON.parse(e.data)
+                        message = JSON.parse(e.data)
                     } catch (e) {
                         
                     }
-                    console.log(['CLIUENT MESSAGE',json])
-                    
-                    console.log("WebSocket Received string : '" + e.data + "'");
-                    stopMicrophone()
-                    if (onCallbacks.hasOwnProperty('speaking')) {
-                        onCallbacks['message'](e.data)
+                    //console.log(['CLIUENT MESSAGE',message])
+                    if (message.transcript) { 
+                        //console.log("WebSocket Received string : '" + message.transcript + "'");
+                        if (recorderTimeout) clearTimeout(recorderTimeout)
+                        if (speakingTimeout) clearTimeout(speakingTimeout)
+                        stopMicrophone()
+                        if (onCallbacks.hasOwnProperty('speaking')) {
+                            onCallbacks['message'](message.transcript)
+                        }
                     }
                 }
             };
@@ -240,7 +258,7 @@ var WebsocketAsrClient = function(config) {
         function activateRecording(deviceId) {
             if (isRecording) return;
             isRecording = true;
-            console.log(['activate recording '])        
+            //console.log(['activate recording '])        
             
             if (!navigator.getUserMedia) {
                 navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia ||
@@ -259,7 +277,7 @@ var WebsocketAsrClient = function(config) {
                  console.log(e);
              }
             function success(e) {
-                console.log(['activate recording success '])        
+                //console.log(['activate recording success '])        
                   microphoneContext = new audioContext();
                   microphoneGainNode = microphoneContext.createGain();
                   microphoneGainNode.gain.value = inputvolume;
@@ -302,21 +320,22 @@ var WebsocketAsrClient = function(config) {
                           offlineCtx.startRendering();
                     }
          
-                  let recorderTimeout = null;  
                   let recorder = microphoneContext.createScriptProcessor(bufferSize, 1, 1);
                   recorder.onaudioprocess = function(e){
                       //console.log(['activate recording onaudioprocess',isRecording,isSending,speaking])
                       if (isRecording && isSending) { // && speaking) {
                           resample(e.inputBuffer,16000,function(res) {
-                            //if (! isPlaying) { 
-                                if (client && client.readyState === client.OPEN && isRecording  && isSending) {
-                                    if (recorderTimeout) clearTimeout(recorderTimeout)
-                                    //sendAudio(Buffer.from(convertFloat32ToInt16(res)))
+                            //if (isRecording  && isSending) {
+                                if (client && client.readyState === client.OPEN) {// && speaking) {
+                                    if (speaking) {
+                                        if (recorderTimeout) clearTimeout(recorderTimeout)
+                                    } else {
+                                        if (!recorderTimeout) recorderTimeout = setTimeout(function() {sendAudioBuffer(); stopMicrophone(); startHotword(); },3000)
+                                    }
                                     bufferAudio(Buffer.from(convertFloat32ToInt16(res)));
                                     sendAudioBuffer() 
-                      
+                                    
                                 } else {
-                                    //if (!recorderTimeout) recorderTimeout = setTimeout(function() {console.log('TIMEOUT'); sendAudioBuffer(); stopMicrophone(); startHotword(); },2000)
                                     bufferAudio(Buffer.from(convertFloat32ToInt16(res)));
                                 }
                             //} 
@@ -346,7 +365,7 @@ var WebsocketAsrClient = function(config) {
             }
             devices['FINAL'] = device
           }
-          console.log(['FOUND DEVICES ',devices,' USING ',device])
+          //console.log(['FOUND DEVICES ',devices,' USING ',device])
           activateRecording(device)
         }
         
@@ -367,7 +386,7 @@ var WebsocketAsrClient = function(config) {
                     var options = {};
                     var speechEvents = hark(stream, options);
                     speechEvents.on('speaking', function() {
-                      clearTimeout(speakingTimeout)
+                      if (speakingTimeout) clearTimeout(speakingTimeout)
                       speaking = true
                       if (onCallbacks.hasOwnProperty('speaking')) {
                         onCallbacks['speaking']()
@@ -375,14 +394,14 @@ var WebsocketAsrClient = function(config) {
                     });
 
                     speechEvents.on('stopped_speaking', function() {
-                      // send an extra second of silence for ASR
+                      // send an extra  second of silence for ASR
                       speakingTimeout = setTimeout(function() {
                              clearTimeout(speakingTimeout)
                              speaking = false
                              if (onCallbacks.hasOwnProperty('stopspeaking')) {
                                 onCallbacks['stopspeaking']()
                              }
-                      },600);
+                      },1500);
                     });    
                       
                   }, function(e) {
@@ -407,9 +426,9 @@ var WebsocketAsrClient = function(config) {
             }
         }
         
-        init()
+        //init()
              
-        return {stopAll:stopAll, bind:bind,unbind:unbind,startMicrophone: startMicrophone, stopMicrophone: stopMicrophone,startHotword:startHotword,stopHotword:stopHotword}
+        return {stopAll:stopAll, bind:bind,unbind:unbind,startMicrophone: startMicrophone, stopMicrophone: stopMicrophone,startHotword:startHotword,stopHotword:stopHotword, init: init}
 }
 
 

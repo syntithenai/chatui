@@ -107,7 +107,7 @@ function ChatPage(props) {
                 })
                 //console.log(['SPEECH parts',speechParts])
                 
-                speakSpeechParts(speechParts).then(function() {console.log('HAN spoken');resolve()})
+                speakSpeechParts(speechParts).then(function() {resolve()})
             }
             
             
@@ -257,39 +257,23 @@ function ChatPage(props) {
        
     function sendUserMessage(message,dmIn) {
         var dmUsed = dmIn ? dmIn : dm;      
-        console.log(['dm send msg',message,dm])
+        //console.log(['dm send msg',message,dm])
         var newHistory = Array.isArray(history) ? history : []
         newHistory.push({user:message,bot:[]})
         setHistory(newHistory)
         window.scrollTo(0,0)
         if (dmUsed && dmUsed.run) {
-            console.log(['dm send msg real',message])
+            //console.log(['dm send msg real',message])
             dmUsed.run(message).then(function(response) {
-                console.log(['dm send msg real done',response])
+                //console.log(['dm send msg real done',response])
                 setUserMessage(' ')
                 //startHotword()
             })
         } 
     }
     
-    function restartVoiceNow(startVoice) {
-        console.log(['RESTART VOICE',startVoice,wc,microphoneState,client]) 
-        //  RESTART VOICE recognition?
-        if (client && microphoneState > 0) {
-            if (startVoice) {
-                console.log(['RESTART VOICE start']) 
-                client.stopHotword()
-                client.startMicrophone()
-            } else {
-                console.log(['RESTART VOICE hw']) 
-                client.stopMicrophone()
-                client.startHotword()
-            }
-        }
-    }
-    
     function handleBotMessage(utterance,startVoice) {
-        console.log(['HANDLEBOT START',utterance,startVoice,dm,wc])
+        //console.log(['HANDLEBOT START',utterance,startVoice,dm,wc])
         setFullScreenYoutube(null)
         setFullScreenVideo(null)
         var newHistory = []
@@ -298,7 +282,7 @@ function ChatPage(props) {
         } catch (e) {
             console.log(e)
         }
-        console.log(['HANDLEBOT',JSON.parse(JSON.stringify(newHistory)),utterance,startVoice])
+        //console.log(['HANDLEBOT',JSON.parse(JSON.stringify(newHistory)),utterance,startVoice])
         var lastMessage = newHistory.length > 0 ? newHistory[newHistory.length -1] :{user:'',bot:[]}
         if (!lastMessage.user) lastMessage.user = ''
         var bot = lastMessage && lastMessage.bot ? lastMessage.bot : []
@@ -310,7 +294,6 @@ function ChatPage(props) {
         } else {
             //console.log(['HANDLEBOT push',lastMessage])
             newHistory.push(lastMessage)
-            
         }
         //console.log(['HANDLEBOT newhist',JSON.parse(JSON.stringify(newHistory))])
         setHistory(newHistory)
@@ -334,17 +317,6 @@ function ChatPage(props) {
         },1000)
     }
     
-    function disableAutoHotword() {
-        console.log('DISHW',wc,client)
-        localStorage.setItem('auto_microphone','NO')
-        if (wc) {
-            wc.stopHotword()
-            wc.stopMicrophone()
-            wc = null
-        }
-        showDisconnected()
-    }
-    
     function showListening() {
         setMicrophoneButtonStyle({border:'1px solid green', backgroundColor:'lightgreen'})
     }
@@ -364,39 +336,89 @@ function ChatPage(props) {
     }
    
 
+    function restartVoiceNow(startVoice) {
+        //console.log(['RESTART VOICE',startVoice,wc,microphoneState,client]) 
+        //  RESTART VOICE recognition?
+        // ??? by referencing microphoneState, the client is populated else null ?????#$%^&*(
+        if (microphoneState > 0) {
+            //console.log(['MICSTATE',microphoneState])
+        }
+        // ???
+        if (client) {
+            if (startVoice) {
+                console.log(['RESTART VOICE start']) 
+                client.stopHotword()
+                client.startMicrophone()
+            } else {
+                console.log(['RESTART VOICE hw']) 
+                client.stopMicrophone()
+                client.startHotword()
+            }
+            console.log('REST')
+            
+        } else {
+            console.log('RESTNOT')
+        }
+    }
+    
+    function disableAutoHotword() {
+        //console.log('DISHW',wc,client)
+        localStorage.setItem('auto_microphone','NO')
+        if (wc) {
+            wc.stopHotword()
+            wc.stopMicrophone()
+            setWc(null)
+        }
+        showDisconnected()
+    }
+    
        
     function toggleVoice() {
         localStorage.setItem('auto_microphone','YES')
-        createWebsocketClient(dm,currentSkill.userAvatar+"-"+currentSkill.title)
-        console.log(['TOGGLEVOIC',microphoneState,client,dm,wc])
-        if (client) {
-            // active -> return to hotword
-            if (microphoneState === 3) {
-                client.stopMicrophone()
-                client.startHotword()
-            // hotword => start microphone
-            } else if (microphoneState === 2) {
-                console.log(['TOGGLEVOIC hw 2 act'])
-                client.stopHotword()
-                client.startMicrophone()
-            } else if (microphoneState === 1) {
-                //client.stopMicrophone()
-                client.startHotword()
-            } else if (microphoneState === 0) {
-                client.stopHotword()
-                client.startMicrophone()
+        if (!wc) {
+            //console.log('TOGGLE WC CREATE')
+            createWebsocketClient(dm,currentSkill.userAvatar+"-"+currentSkill.title)
+            setTimeout(function() { doToggle() },500)
+        } else {
+            doToggle()
+        }
+        
+        function doToggle() {
+            var useClient = wc
+            if (!useClient) useClient = client
+            //console.log(['TOGGLEVOIC',client,wc,useClient])
+            
+            if (useClient) {
+                //console.log(['TOGGLEVOIC wcOK'])
+                // active -> return to hotword
+                if (microphoneState === 3) {
+                    useClient.stopMicrophone()
+                    useClient.startHotword()
+                // hotword => start microphone
+                } else if (microphoneState === 2) {
+                    //console.log(['TOGGLEVOIC hw 2 act'])
+                    useClient.stopHotword()
+                    useClient.startMicrophone()
+                } else if (microphoneState === 1) {
+                    useClient.stopMicrophone()
+                    useClient.startHotword()
+                } else if (microphoneState === 0) {
+                    useClient.stopHotword()
+                    useClient.startMicrophone()
+                }
             }
         }
     }   
 
     function createWebsocketClient(d,skillIdent) {
       //  if (!wc) {
-            console.log(['CREATEWEBSOCKETCLIENT real'])
+            //console.log(['CREATEWEBSOCKETCLIENT real'])
                 var config = {skill:skillIdent}
                 config.server = 'wss://api.opennludata.org:5000/'
                 //config.server = 'ws://localhost:8080/'
                 //config.server = 'wss://localhost:5000/'
                 client = new WebsocketAsrClient(config)
+                client.init()
                 setWc(client)
                 client.bind('message',function(message) {
                     console.log(['MESSAGE',message])
@@ -440,13 +462,13 @@ function ChatPage(props) {
                    //state = 1
                 //})
                 client.bind('speaking',function() {
-                    console.log('SPEAK');
+                    //console.log('SPEAK');
                     if (microphoneState == 3) {
                         showListening(); 
                     }
                 })
                 client.bind('stopspeaking',function() {
-                    console.log('STOP SPEAK');
+                    //console.log('STOP SPEAK');
                     if (microphoneState == 3) {
                         showSilentListening(); 
                     }
@@ -459,7 +481,7 @@ function ChatPage(props) {
         setReady(false)
         //console.log(['TRAIN reset history',history])
         return new Promise(function(resolve,reject) {
-            console.log(['TRAIN',JSON.parse(JSON.stringify(currentSkill))])
+            //console.log(['TRAIN',JSON.parse(JSON.stringify(currentSkill))])
             setHistory([])
             //exportJSON(currentSkill).then(function(config) {
                 //console.log(['TRAIN dm exported json',config])
@@ -468,14 +490,14 @@ function ChatPage(props) {
                 d.handleBotMessage = handleBotMessage
                 setDm(d)
                 setReady(true)
-                console.log(['TRAIN dm set ready '])
+                //console.log(['TRAIN dm set ready '])
                 d.init().then(function(botWelcome) {
                     //console.log(['TRAIN dm initied',botWelcome])
                     setReady(true)
                     //console.log(window.WebsocketAsrClient) 
                     
                     var autoHotword = localStorage.getItem('auto_microphone') === "YES" ? true : false
-                    console.log(['CREATEWEBSOCKETCLIENT',autoHotword,d])    
+                    //console.log(['CREATEWEBSOCKETCLIENT',autoHotword,d])    
                     if (autoHotword) {
                         createWebsocketClient(d,currentSkill.userAvatar+"-"+currentSkill.title)
                         client.startHotword()
