@@ -204,6 +204,7 @@ var WebsocketAsrClient = function(config) {
             client = new WebSocket(config.server, 'asr-audio');
             client.onerror = function(e) {
                 console.log(['Connection Error',e]);
+                startHotword()
             };
             client.onopen = function() {
                 console.log('WebSocket Client Connected');
@@ -213,6 +214,7 @@ var WebsocketAsrClient = function(config) {
             };
             client.onclose = function() {
                 console.log('WebSocket Client Closed');
+                startHotword()
                 //isConnected = false
             };
             client.onmessage = function(e) {
