@@ -20,6 +20,8 @@ var WebsocketAsrClient = function(config) {
         var hotwordReady = false      
         
         var speakingTimeout = null
+        var recorderTimeout = null;  
+        var maxTimeout = null
         
         var inputvolume = 1.0  
         
@@ -30,7 +32,6 @@ var WebsocketAsrClient = function(config) {
         var bufferSource = null
         var currentVolume = null      
         var onCallbacks = {}
-        var recorderTimeout = null;  
                   
                   
         var SENSITIVITIES = new Float32Array([
@@ -144,9 +145,9 @@ var WebsocketAsrClient = function(config) {
 
         
         function bufferAudio(audio) {
-            console.log('buffer')
+            //console.log('buffer')
             microphoneAudioBuffer.push(audio);
-            if (microphoneAudioBuffer.length > 3) {
+            if (microphoneAudioBuffer.length > 8) {
                 microphoneAudioBuffer.shift();
             }
         }
@@ -154,7 +155,7 @@ var WebsocketAsrClient = function(config) {
         function sendAudioBuffer() {
             //console.log(["send buffer",microphoneAudioBuffer.length])
             if (client && client.readyState === client.OPEN) {
-                console.log('sendbuffer')
+                //console.log('sendbuffer')
                 for (var a in microphoneAudioBuffer) {
                     sendAudio(microphoneAudioBuffer[a]);
                 }
@@ -172,21 +173,65 @@ var WebsocketAsrClient = function(config) {
             }
         }
         
+        function createRecorderTimeout(a) {
+            //console.log(['CREATE RECORDER TIMEOUT',a])
+            //if (!recorderTimeout) recorderTimeout = setTimeout(function() {console.log(['RECORDER TIMEOUT']); sendAudioBuffer(); stopMicrophone(); startHotword(); },3000)
+        }
+        
+        function clearRecorderTimeout(a) {
+            //console.log(['CLEAR RECORDER TIMEOUT',a])
+            if (recorderTimeout) {
+                clearTimeout(recorderTimeout)
+                recorderTimeout = null
+            } 
+        }
+
+        function clearTimeouts(a) {
+            //console.log(['CLEAR TIMEOUTS',a])
+            if (recorderTimeout) {
+                clearTimeout(recorderTimeout)
+                recorderTimeout = null
+            }
+            //if (speakingTimeout) {
+                //clearTimeout(speakingTimeout)
+                //speakingTimeout = null
+            //} 
+        }
+
+                
+        function createMaxTimeout() {
+            maxTimeout = setTimeout(function() {
+                console.log('MAX TIMEOUT')
+                sendAudioBuffer()
+                stopMicrophone()
+                startHotword(); 
+            },14000)
+        }
+
+        function clearMaxTimeout() {
+            if (maxTimeout) clearTimeout(maxTimeout)
+            maxTimeout = null
+        }
+        
+        
         function startMicrophone() {
             //console.log('START MIC CREATE CLIENT')
             microphoneAudioBuffer = []
             isSending = true
             createClient()
-            
+            createRecorderTimeout('start mic')
+            clearMaxTimeout()
+            createMaxTimeout()
             if (onCallbacks.hasOwnProperty('microphoneStart')) {
                 onCallbacks['microphoneStart']()
             }
         }
         
-        
         function stopMicrophone() {
             //console.log('STOP MIC CLOSE CLIENT',client)
             isSending = false;
+            clearMaxTimeout()
+            
             // close websocket
             if (client && client.readyState === client.OPEN) {
                 //console.log('STOP MIC CLOSE CLIENT send close',client)
@@ -213,8 +258,7 @@ var WebsocketAsrClient = function(config) {
             client = new WebSocket(config.server, 'asr-audio');
             client.onerror = function(e) {
                 //console.log(['Connection Error',e]);
-                if (recorderTimeout) clearTimeout(recorderTimeout)
-                if (speakingTimeout) clearTimeout(speakingTimeout)
+                clearTimeouts('create client err')
                 stopMicrophone()
                 startHotword()
             };
@@ -226,8 +270,7 @@ var WebsocketAsrClient = function(config) {
             };
             client.onclose = function() {
                 //console.log('WebSocket Client Closed');
-                if (recorderTimeout) clearTimeout(recorderTimeout)
-                if (speakingTimeout) clearTimeout(speakingTimeout)
+                clearTimeouts('create client close')
                 stopMicrophone()
                 startHotword()
                 //isConnected = false
@@ -244,8 +287,7 @@ var WebsocketAsrClient = function(config) {
                     //console.log(['CLIUENT MESSAGE',message])
                     if (message.transcript) { 
                         //console.log("WebSocket Received string : '" + message.transcript + "'");
-                        if (recorderTimeout) clearTimeout(recorderTimeout)
-                        if (speakingTimeout) clearTimeout(speakingTimeout)
+                        clearTimeouts('create client message')
                         stopMicrophone()
                         if (onCallbacks.hasOwnProperty('speaking')) {
                             onCallbacks['message'](message.transcript)
@@ -319,18 +361,18 @@ var WebsocketAsrClient = function(config) {
                           }
                           offlineCtx.startRendering();
                     }
-         
-                  let recorder = microphoneContext.createScriptProcessor(bufferSize, 1, 1);
-                  recorder.onaudioprocess = function(e){
+                    
+                    let recorder = microphoneContext.createScriptProcessor(bufferSize, 1, 1);
+                    recorder.onaudioprocess = function(e){
                       //console.log(['activate recording onaudioprocess',isRecording,isSending,speaking])
                       if (isRecording && isSending) { // && speaking) {
                           resample(e.inputBuffer,16000,function(res) {
                             //if (isRecording  && isSending) {
                                 if (client && client.readyState === client.OPEN) {// && speaking) {
                                     if (speaking) {
-                                        if (recorderTimeout) clearTimeout(recorderTimeout)
+                                        clearRecorderTimeout(' is speaking')
                                     } else {
-                                        if (!recorderTimeout) recorderTimeout = setTimeout(function() {sendAudioBuffer(); stopMicrophone(); startHotword(); },3000)
+                                        createRecorderTimeout(' not speaking')
                                     }
                                     bufferAudio(Buffer.from(convertFloat32ToInt16(res)));
                                     sendAudioBuffer() 
@@ -341,7 +383,7 @@ var WebsocketAsrClient = function(config) {
                             //} 
                           });
                       }
-                  }
+                    }
                   //
                 microphoneGainNode.connect(recorder);
                 audioInput.connect(microphoneGainNode);
@@ -386,6 +428,7 @@ var WebsocketAsrClient = function(config) {
                     var options = {};
                     var speechEvents = hark(stream, options);
                     speechEvents.on('speaking', function() {
+                        console.log('SPEAKING')
                       if (speakingTimeout) clearTimeout(speakingTimeout)
                       speaking = true
                       if (onCallbacks.hasOwnProperty('speaking')) {
@@ -396,6 +439,7 @@ var WebsocketAsrClient = function(config) {
                     speechEvents.on('stopped_speaking', function() {
                       // send an extra  second of silence for ASR
                       speakingTimeout = setTimeout(function() {
+                          console.log('stop     SPEAKING')
                              clearTimeout(speakingTimeout)
                              speaking = false
                              if (onCallbacks.hasOwnProperty('stopspeaking')) {

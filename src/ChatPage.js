@@ -2,7 +2,7 @@
 
 //, Modal
 import React, {Fragment, useState, useEffect, useContext, useRef} from 'react';
-import {ListGroup, Button, Accordion, Card, AccordionContext} from 'react-bootstrap'
+import {ListGroup, Button, Accordion, Card, AccordionContext, Modal} from 'react-bootstrap'
 //import { Link  } from 'react-router-dom'
 import { ChatUIComponent } from './ChatUIComponent'
 import DialogManager from 'voicedialogjs'
@@ -10,7 +10,8 @@ import YouTube from 'react-youtube';
 import MicrophoneComponent from './MicrophoneComponent'
 //var config={}
 import WebsocketAsrClient from './WebsocketAsrClient'
-
+import 'bootstrap';
+import 'bootstrap/dist/css/bootstrap.min.css';
     
 var meSpeak = window.meSpeak
 
@@ -52,7 +53,11 @@ function ChatPage(props) {
     var audio  = null
     var [historyHash,setHistoryHash] = useState(null)
     var client = null
-    
+    const [show, setShow] = useState(false);
+
+    const handleClose = () => setShow(false);
+    const handleShow = () => setShow(true);
+
     function setMute(val) {
         if (val) {
             if (meSpeak) meSpeak.stop();
@@ -521,7 +526,7 @@ function ChatPage(props) {
             trainChat()
         }
     },[currentSkill])
-      var buttonStyle = {position:'relative', backgroundColor:'grey' , border: '2px solid black', borderRadius: '2em', height: '3em', width: '3em', textDecoration: 'none', outline: 'none', padding: '0.2em'}
+      var buttonStyle = {position:'relative', backgroundColor:'grey' , border: '1px solid black', borderRadius: '2em', height: '3em', width: '3em', textDecoration: 'none', outline: 'none', padding: '0.2em'}
       var micbuttonStyle = {position:'relative', backgroundColor:(props.color ? props.color : 'grey') , border: '2px solid black', borderRadius: '2em', height: '3em', width: '3em', textDecoration: 'none', outline: 'none'}
       
        
@@ -531,73 +536,88 @@ function ChatPage(props) {
             e.preventDefault(); 
             
         }} >
-                    <div style={{backgroundColor: 'lightgrey', position:'fixed',top:0,left:0, width:'100%',border:'2px solid black', padding:'0.3em'}}>
-        
-                        <input type='text' style={{marginRight:'1em',width:'75%'}} value={userMessage} placeholder={history.length === 0 ? 'Start a conversation': ''} 
-                        onKeyUp={function(e) {
-                            if (e.keyCode === 13 && userMessage.trim().length > 0) {
-                                sendUserMessage(userMessage)
-                                setUserMessage('')
-                            }
-                        }}  
+        {JSON.stringify(currentSkill.config)}
+                    <div style={{backgroundColor: (currentSkill && currentSkill.config && currentSkill.config.color) ? currentSkill.config.color : 'lightblue', position:'fixed',top:0,left:0, width:'100%',border:'2px solid black', padding:'0.3em'}}>
+                    <div style={{position:'relative'}} >
+
+                        {(currentSkill && currentSkill.config && currentSkill.config.helpText) && <div onClick={handleShow} style={{float:'right'}}>
+                            <svg 
+                                xmlns="http://www.w3.org/2000/svg" 
+                                viewBox="0 0 200 200 " x="0px" y="0px" style={{height: '3em', width: '3em'}}
+                                width="180" height="180" 
+                                >
+                        <path fill="none" stroke="#000" stroke-width="16" d="M60,67c0-13 1-19 8-26c7-9 18-10 28-8c10,2 22,12 22,26c0,14-11,19-15,22c-7,2-10,6-11,11v20m0,12v16"/>
+                        </svg></div>}
+            
                         
-                        onChange={function(e) {setUserMessage(e.target.value)}} />
-                        <MicrophoneComponent onContextMenu={function(e) {disableAutoHotword()}} onClick={function(e) {toggleVoice()}} style={Object.assign({},micbuttonStyle,microphoneButtonStyle)} onMessage={function(message) {setUserMessage(message); sendUserMessage(message);}} />
                         
-                        {!mute && <Button variant="primary" style={Object.assign({},buttonStyle,{marginLeft:'1em',backgroundColor:'#90ee9024',borderColor:'green'})}    onClick={function(e) {
-                            setMute(true)
-                        }}><div style={{position: 'relative', width:'90%', top:'-0.4em', left:'-0.1em'}}><svg  viewBox="0 0 31 31">
-                          <g
-                             stroke="black"
-                             strokeWidth="1"
-                             fill="none"
-                             fillRule="evenodd"
-                             id="g8">
-                            <path
-                                 style={{fill:'#000000',fillRule:'evenodd',stroke:'none',strokeWidth:1}}
-                                 id="path6"
-                                 d="M 6.0093689,15.068946 H 7.9906311 C 8.5480902,15.068946 9,15.504817 9,16.044457 v 7.847427 c 0,0.53876 -0.4433532,0.975512 -1.0093689,0.975512 H 6.0093689 C 5.4519098,24.867396 5,24.431524 5,23.891884 v -7.847427 c 0,-0.53876 0.4433532,-0.975511 1.0093689,-0.975511 z m 4.8355181,-0.526819 8.46047,-5.2754227 C 20.241282,8.6831193 21,9.088977 21,10.174567 v 19.587207 c 0,1.084984 -0.791093,1.541729 -1.755146,1.02648 L 10.881582,26.318412 C 10.394698,26.058191 10,25.411369 10,24.871729 v -8.827272 c 0,-0.53876 0.378645,-1.211611 0.844887,-1.50233 z"
-                                 />
-                            </g>
-                        </svg></div></Button>}
-                        {mute && <Button variant="primary" style={Object.assign({},buttonStyle,{marginLeft:'1em',backgroundColor:'#fcbfcb3d',borderColor:'red'})}    onClick={function(e) {
-                            setMute(false)
-                        }}><div style={{position: 'relative', width:'90%', top:'-0.4em', left:'-0.1em'}}><svg viewBox="0 0 31 31" >
-                          <g
-                             stroke="black"
-                             strokeWidth="1"
-                             fill="none"
-                             fillRule="evenodd"
-                             id="g8">
-                            <path
-                               d="M26.8890873,18.5748798 L24.4142136,16.1000061 L23,17.5142197 L25.4748737,19.9890934 L23,22.4639671 L24.4142136,23.8781807 L26.8890873,21.403307 L29.363961,23.8781807 L30.7781746,22.4639671 L28.3033009,19.9890934 L30.7781746,17.5142197 L29.363961,16.1000061 L26.8890873,18.5748798 Z M6.0093689,15.0689455 L7.9906311,15.0689455 C8.54809015,15.0689455 9,15.5048168 9,16.0444571 L9,23.8918841 C9,24.4306443 8.55664682,24.8673958 7.9906311,24.8673958 L6.0093689,24.8673958 C5.45190985,24.8673958 5,24.4315245 5,23.8918841 L5,16.0444571 C5,15.5056969 5.44335318,15.0689455 6.0093689,15.0689455 Z M10.8448866,14.5421268 L19.3053568,9.26670427 C20.2412824,8.68311934 21,9.08897697 21,10.1745672 L21,29.761774 C21,30.8467578 20.2089071,31.3035027 19.244854,30.788254 L10.8815817,26.3184118 C10.3946976,26.0581912 10,25.4113695 10,24.8717291 L10,16.0444571 C10,15.5056969 10.3786449,14.8328461 10.8448866,14.5421268 Z"
-                               fill="#000000"
-                               id="path6" />
-                          </g>
-                        </svg></div></Button>}
-                        {(fullScreenYoutube && fullScreenYoutube.youtubeVideoId) && 
-                            <span style={{position: 'relative', height: '3em', width: '3em', top:'0.7em', marginLeft:'1em'}} onClick={function(e) {setFullScreenYoutube(null); setFullScreenVideo(null); if (audio) {audio.pause()}; audio = null}}>
-                                <svg  viewBox="0 0 34 34 " x="0px" y="0px" style={{height: '3em', width: '3em'}}>
-                                
+                        {(currentSkill && currentSkill.config && currentSkill.config.logo) && <img style={{float: 'left',height:'4em', marginRight:'1em'}}  src={currentSkill.config.logo} />}
+            
+                            <input type='text' style={{marginRight:'1em',width:'25%'}} value={userMessage} placeholder={history.length === 0 ? 'Start a conversation': ''} 
+                            onKeyUp={function(e) {
+                                if (e.keyCode === 13 && userMessage.trim().length > 0) {
+                                    sendUserMessage(userMessage)
+                                    setUserMessage('')
+                                }
+                            }}  
+                            
+                            onChange={function(e) {setUserMessage(e.target.value)}} />
+                            <MicrophoneComponent onContextMenu={function(e) {disableAutoHotword()}} onClick={function(e) {toggleVoice()}} style={Object.assign({},micbuttonStyle,microphoneButtonStyle)} onMessage={function(message) {setUserMessage(message); sendUserMessage(message);}} />
+                            
+                            {!mute && <Button variant="primary" style={Object.assign({},buttonStyle,{marginLeft:'1em',backgroundColor:'lightgreen',borderColor:'green'})}    onClick={function(e) {
+                                setMute(true)
+                            }}><div ><svg style={{position: 'relative', width:'100%', top:'-5', left:'-1'}} viewBox="0 0 31 31">
+                              <g
+                                 stroke="black"
+                                 strokeWidth="1"
+                                 fill="none"
+                                 fillRule="evenodd"
+                                 id="g8">
                                 <path
-                                 d="M 21.000009,30.000009 H 9.0000085 a 0.5,0.5 0 0 1 -0.35,-0.15 l -8.49999997,-8.49 A 0.5,0.5 0 0 1 8.527757e-6,21.000009 V 9.0000085 A 0.5,0.5 0 0 1 0.15000853,8.6500085 L 8.6400085,0.15000853 a 0.5,0.5 0 0 1 0.36,-0.150000002243 H 21.000009 a 0.5,0.5 0 0 1 0.35,0.150000002243 l 8.49,8.48999997 a 0.5,0.5 0 0 1 0.16,0.36 V 21.000009 a 0.5,0.5 0 0 1 -0.15,0.35 l -8.49,8.49 a 0.5,0.5 0 0 1 -0.36,0.16 z m -11.8000005,-1 H 20.800009 l 8.2,-8.2 V 9.2000085 l -8.2,-8.2 H 9.2000085 l -8.2,8.2 V 20.800009 Z"
-                                 id="path4617"
-                                 style={{fill:'#fa0010', fillOpacity:1, imageRendering:'auto' ,stroke:'#dc2500', strokeOpacity:1, opacity:1, strokeWidth:1.8, strokeMiterlimit:4, strokeDasharray:'none'}}  />
-                              <text
-                                 style={{fontStyle:'normal', fontWeight:'normal', fontSize:'10.79994011px' , lineHeight:1.25, fontFamily:'sans-serif', letterSpacing:'0px', wordSpacing:'0px', fill:'#000000', fillOpacity:1, stroke:'none', strokeWidth:0.26999852}}
-                                 x="3.4542296"
-                                 y="15.328075"
-                                 id="text5172"
-                                 transform="scale(0.75898724,1.3175452)"><tspan
-                                   id="tspan5170"
-                                   x="3.4542296"
-                                   y="15.328075"
-                                   style={{fontStyle:'normal', fontVariant:'normal', fontWeight:'bold', fontStretch:'normal', fontSize:'10.79994011px', fontFamily:'sans-serif', fontVariantLigatures:'normal', fontVariantCaps:'normal', fontVariantNumeric:'normal', fontFeatureSettings:'normal', textAlign:'start', writingMode:'lr-tb', textAnchor:'start', strokeWidth:0.26999852}} >STOP</tspan></text>
-                                
-                                </svg>
-                            </span>    
-                        }
-                        
+                                     style={{fill:'#000000',fillRule:'evenodd',stroke:'none',strokeWidth:1}}
+                                     id="path6"
+                                     d="M 6.0093689,15.068946 H 7.9906311 C 8.5480902,15.068946 9,15.504817 9,16.044457 v 7.847427 c 0,0.53876 -0.4433532,0.975512 -1.0093689,0.975512 H 6.0093689 C 5.4519098,24.867396 5,24.431524 5,23.891884 v -7.847427 c 0,-0.53876 0.4433532,-0.975511 1.0093689,-0.975511 z m 4.8355181,-0.526819 8.46047,-5.2754227 C 20.241282,8.6831193 21,9.088977 21,10.174567 v 19.587207 c 0,1.084984 -0.791093,1.541729 -1.755146,1.02648 L 10.881582,26.318412 C 10.394698,26.058191 10,25.411369 10,24.871729 v -8.827272 c 0,-0.53876 0.378645,-1.211611 0.844887,-1.50233 z"
+                                     />
+                                </g>
+                            </svg></div></Button>}
+                            {mute && <Button variant="primary" style={Object.assign({},buttonStyle,{marginLeft:'1em',backgroundColor:'lightpink',borderColor:'red'})}    onClick={function(e) {
+                                setMute(false)
+                            }}><div ><svg style={{position: 'relative', width:'100%', top:'-5', left:'-1'}} viewBox="0 0 31 31" >
+                              <g
+                                 stroke="black"
+                                 strokeWidth="1"
+                                 fill="none"
+                                 fillRule="evenodd"
+                                 id="g8">
+                                <path
+                                   d="M26.8890873,18.5748798 L24.4142136,16.1000061 L23,17.5142197 L25.4748737,19.9890934 L23,22.4639671 L24.4142136,23.8781807 L26.8890873,21.403307 L29.363961,23.8781807 L30.7781746,22.4639671 L28.3033009,19.9890934 L30.7781746,17.5142197 L29.363961,16.1000061 L26.8890873,18.5748798 Z M6.0093689,15.0689455 L7.9906311,15.0689455 C8.54809015,15.0689455 9,15.5048168 9,16.0444571 L9,23.8918841 C9,24.4306443 8.55664682,24.8673958 7.9906311,24.8673958 L6.0093689,24.8673958 C5.45190985,24.8673958 5,24.4315245 5,23.8918841 L5,16.0444571 C5,15.5056969 5.44335318,15.0689455 6.0093689,15.0689455 Z M10.8448866,14.5421268 L19.3053568,9.26670427 C20.2412824,8.68311934 21,9.08897697 21,10.1745672 L21,29.761774 C21,30.8467578 20.2089071,31.3035027 19.244854,30.788254 L10.8815817,26.3184118 C10.3946976,26.0581912 10,25.4113695 10,24.8717291 L10,16.0444571 C10,15.5056969 10.3786449,14.8328461 10.8448866,14.5421268 Z"
+                                   fill="#000000"
+                                   id="path6" />
+                              </g>
+                            </svg></div></Button>}
+                            {(fullScreenYoutube && fullScreenYoutube.youtubeVideoId) && 
+                                <span style={{position: 'relative', height: '3em', width: '3em', top:'0.7em', marginLeft:'1em'}} onClick={function(e) {setFullScreenYoutube(null); setFullScreenVideo(null); if (audio) {audio.pause()}; audio = null}}>
+                                    <svg  viewBox="0 0 34 34 " x="0px" y="0px" style={{height: '3em', width: '3em'}}>
+                                    
+                                    <path
+                                     d="M 21.000009,30.000009 H 9.0000085 a 0.5,0.5 0 0 1 -0.35,-0.15 l -8.49999997,-8.49 A 0.5,0.5 0 0 1 8.527757e-6,21.000009 V 9.0000085 A 0.5,0.5 0 0 1 0.15000853,8.6500085 L 8.6400085,0.15000853 a 0.5,0.5 0 0 1 0.36,-0.150000002243 H 21.000009 a 0.5,0.5 0 0 1 0.35,0.150000002243 l 8.49,8.48999997 a 0.5,0.5 0 0 1 0.16,0.36 V 21.000009 a 0.5,0.5 0 0 1 -0.15,0.35 l -8.49,8.49 a 0.5,0.5 0 0 1 -0.36,0.16 z m -11.8000005,-1 H 20.800009 l 8.2,-8.2 V 9.2000085 l -8.2,-8.2 H 9.2000085 l -8.2,8.2 V 20.800009 Z"
+                                     id="path4617"
+                                     style={{fill:'#fa0010', fillOpacity:1, imageRendering:'auto' ,stroke:'#dc2500', strokeOpacity:1, opacity:1, strokeWidth:1.8, strokeMiterlimit:4, strokeDasharray:'none'}}  />
+                                  <text
+                                     style={{fontStyle:'normal', fontWeight:'normal', fontSize:'10.79994011px' , lineHeight:1.25, fontFamily:'sans-serif', letterSpacing:'0px', wordSpacing:'0px', fill:'#000000', fillOpacity:1, stroke:'none', strokeWidth:0.26999852}}
+                                     x="3.4542296"
+                                     y="15.328075"
+                                     id="text5172"
+                                     transform="scale(0.75898724,1.3175452)"><tspan
+                                       id="tspan5170"
+                                       x="3.4542296"
+                                       y="15.328075"
+                                       style={{fontStyle:'normal', fontVariant:'normal', fontWeight:'bold', fontStretch:'normal', fontSize:'10.79994011px', fontFamily:'sans-serif', fontVariantLigatures:'normal', fontVariantCaps:'normal', fontVariantNumeric:'normal', fontFeatureSettings:'normal', textAlign:'start', writingMode:'lr-tb', textAnchor:'start', strokeWidth:0.26999852}} >STOP</tspan></text>
+                                    
+                                    </svg>
+                                </span>    
+                            }
+                         </div>    
                     </div>
                 
         <br/><br/><br/>    
@@ -633,6 +653,19 @@ function ChatPage(props) {
      {<span style={{display:(ready ? 'block' : 'none')}} ><ChatUIComponent fullScreenVideo={fullScreenVideo} fullScreenYoutube={fullScreenYoutube} jsonhistory={JSON.stringify(history)} history={history}  sendUserMessage={sendUserMessage} /></span>}
     {!ready && <b style={{padding:'1em' , marginTop:'5em'}}>Loading</b>}
       </>}
+  
+      <Modal show={show} onHide={handleClose}>
+        <Modal.Header closeButton>
+          <Modal.Title>Help</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>{(currentSkill && currentSkill.config && currentSkill.config.helpText) ? currentSkill.config.helpText  : ''}</Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={handleClose}>
+            Close
+          </Button>
+        </Modal.Footer>
+      </Modal>
+      
     </div>
 }
 
